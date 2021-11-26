@@ -111,8 +111,6 @@ pd.set_option('display.max_rows', None)
 ## 경도 위도 DataFrame 재설정
 df.info()
 
-df
-
 ## index 재설정
 df = df.reset_index()
 
@@ -152,6 +150,3 @@ for n in df_2.index:
 map
 # -
 df_2.to_csv('./03.시군구_자동차등록현황.csv',index=False, encoding='cp949')
-
-
-
