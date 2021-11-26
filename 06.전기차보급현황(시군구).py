@@ -78,8 +78,6 @@ df.loc[df.지역구분 == '울산광역시', ('시군구')] = ('울산광역시'
 df.loc[df.지역구분 == '세종특별자치시', ('시군구')] = ('세종특별시')
 df.loc[df.지역구분 == '제주특별자치도', ('시군구')] = ('제주특별자치도')
 
-df
-
 df.info()
 
 ## 지오코딩에 필요한 리스트 시군구 생성
@@ -134,8 +132,6 @@ df_1 = df_1.rename(columns={'index' : '시군구'})
 df_2 = pd.merge(df, df_1,how='outer',on='시군구')
 df_2
 
-df_2
-
 (ggplot(df_2)  ## gg plot 으로 시각화
  + aes(x='경도', y='위도', color='총합')
  + geom_point() # 점포인트로 찍음
@@ -159,6 +155,3 @@ for n in df_2.index:
 map
 # -
 df_2.to_csv('./06.전기차보급현황(시군구).csv',index=False, encoding='cp949')
-
-
-
