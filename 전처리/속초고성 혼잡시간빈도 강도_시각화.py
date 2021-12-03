@@ -74,6 +74,51 @@ path
 df_10 = gpd.read_file("MOCT_LINK.json")
 df_10.head()
 
+pd.set_option('display.max_columns',None)
+pd.set_option('display.max_rows',None)
+
+import pandas as pd
+
+df_1 = pd.merge(df1, df2, on = 'LINK_ID')
+
+df1 = pd.read_csv('속초-고성_2017_혼잡빈도,시간,기대_강도.csv', encoding='cp949')
+df1
+
+df2 = pd.read_csv('속초-고성_2018_혼잡빈도,시간,기대_강도.csv', encoding='cp949')
+df2
+
+df3 = pd.read_csv('속초-고성_2019_혼잡빈도,시간,기대_강도.csv', encoding='cp949')
+df3
+
+df4 = pd.read_csv('속초-고성_2019_혼잡빈도,시간,기대_강도.csv', encoding='cp949')
+df4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 df_12 = pd.read_csv("./혼잡빈도시간강도_total.csv", encoding='cp949')
 df_12.head()
 
@@ -148,6 +193,8 @@ df.loc[df['LANES'] == 7, 'WIDTH'] = '5'
 df['정규화도로폭'] = df['WIDTH'].apply(int) / df['WIDTH'].apply(int).max()
 df['정규화도로폭'] 
 
+df['정규화도로폭'] .unique()
+
 df_12
 
 # +
@@ -163,9 +210,10 @@ result = pd.merge(df, data, on = 'LINK_ID' )
 
 # 혼잡빈도강도 합이 가장 높은 도로
 result.iloc[result["혼잡빈도강도합"].sort_values(ascending=False).index].reindex().head()
-# -
 
-result.loc[result['혼잡빈도강도합'] == 0, '혼잡빈도강도합'] = '1'
+# +
+# result.loc[result['혼잡빈도강도합'] == 0, '혼잡빈도강도합'] = '1'
+# -
 
 result['혼잡빈도강도합'].unique()
 
@@ -231,3 +279,6 @@ r = pdk.Deck(layers=[layer], initial_view_state=view_state
             ) 
 
 r.to_html('./혼잡시간강도_최종.html')
+# -
+
+
