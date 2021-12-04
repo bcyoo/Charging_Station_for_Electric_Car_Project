@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.13.1
+#       jupytext_version: 1.13.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -240,7 +240,7 @@ df.loc[df['LANES'] == 7, 'WIDTH'] = '5'
 df['정규화도로폭'] = df['WIDTH'].apply(int) / df['WIDTH'].apply(int).max()
 df
 
-df_12.info()
+df_12
 
 # +
 # 혼합빈도강도 양방향 총 합
@@ -257,7 +257,7 @@ df_10_12 = pd.merge(df, df_10_, on = 'LINK_ID' )
 df_10_12.iloc[df_10_12["혼잡빈도강도합"].sort_values(ascending=False).index].reindex().head()
 # -
 
-df_10_12['혼잡빈도강도합'].unique()
+df_10_12
 
 df_10_12.loc[df_10_12['혼잡빈도강도합'] == 0, '혼잡빈도강도합'] = '1'
 
@@ -749,4 +749,356 @@ try:
                'w_FS','w_SS','개발가능','FS_station','SS_station']].to_file("df_result.geojson", driver="GeoJSON")
 except:
     pass
+
+
+# +
+def generate_candidate_sites(points,M=100):
+    '''
+    Generate M candidate sites with the convex hull of a point set
+    Input:
+        points: a Numpy array with shape of (N,2)
+        M: the number of candidate sites to generate
+    Return:
+        sites: a Numpy array with shape of (M,2)
+    '''
+    hull = ConvexHull(points)
+    polygon_points = points[hull.vertices]
+    poly = Polygon(polygon_points)
+    min_x, min_y, max_x, max_y = poly.bounds
+    sites = []
+    while len(sites) < M:
+        random_point = Point([random.uniform(min_x, max_x),
+                             random.uniform(min_y, max_y)])
+        if (random_point.within(poly)):
+            sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+
+
+
+def generate_candidate_sites(df_result_fin,M=100):
+    from shapely.geometry import Polygon, Point
+    sites = []
+    idx=np.random.choice(np.array(range(0,len(df_result_fin))), M)
+    for i in range(len(idx)):
+        random_point = Point(np.array(df_result_fin.iloc[idx]['coord_cent'])[i][0],
+                             np.array(df_result_fin.iloc[idx]['coord_cent'])[i][1])
+        sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+def generate_candidate_sites(df_result_fin,Weight,M=100):
+    sites = []
+    idx = df_result_fin.sort_values(by = Weight, ascending = False).iloc[1:M].index
+    for i in range(len(idx)):
+        random_point = Point(np.array(df_result_fin.loc[idx]['coord_cent'])[i][0],
+                             np.array(df_result_fin.loc[idx]['coord_cent'])[i][1])
+        sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+
+
+from scipy.spatial import distance_matrix
+def mclp(points,K,radius,M,df_result_fin,w,Weight):
+
+    """
+    Solve maximum covering location problem
+    Input:
+        points: input points, Numpy array in shape of [N,2]
+        K: the number of sites to select
+        radius: the radius of circle
+        M: the number of candidate sites, which will randomly generated inside
+        the ConvexHull wrapped by the polygon
+    Return:
+        opt_sites: locations K optimal sites, Numpy array in shape of [K,2]
+        f: the optimal value of the objective function
+    """
+    print('----- Configurations -----')
+    print('  Number of points %g' % points.shape[0])
+    print('  K %g' % K)
+    print('  Radius %g' % radius)
+    print('  M %g' % M)
+    import time
+    start = time.time()
+    sites = generate_candidate_sites(df_result_fin,Weight,M)
+    J = sites.shape[0]
+    I = points.shape[0]
+    D = distance_matrix(points,sites)
+    mask1 = D<=radius
+    D[mask1]=1
+    D[~mask1]=0
+
+    from mip import Model, xsum, maximize, BINARY
+
+    # Build model
+    m = Model("mclp")
+    # Add variables
+
+    x = [m.add_var(name = "x%d" % j, var_type = BINARY) for j in range(J)]
+    y = [m.add_var(name = "y%d" % i, var_type = BINARY) for i in range(I)]
+
+
+    m.objective = maximize(xsum(w[i]*y[i] for i in range (I)))
+
+    m += xsum(x[j] for j in range(J)) == K
+
+    for i in range(I):
+        m += xsum(x[j] for j in np.where(D[i]==1)[0]) >= y[i]
+
+    m.optimize()
+    
+    end = time.time()
+    print('----- Output -----')
+    print('  Running time : %s seconds' % float(end-start))
+    print('  Optimal coverage points: %g' % m.objective_value)
+
+    solution = []
+    for i in range(J):
+        if x[i].x ==1:
+            solution.append(int(x[i].name[1:]))
+    opt_sites = sites[solution]
+            
+    return opt_sites,m.objective_value
+
+
+
+
+# +
+import pathlib
+import random
+from functools import reduce
+from collections import defaultdict
+
+import pandas as pd
+import geopandas as gpd
+import folium
+import shapely
+import numpy as np
+from IPython.display import display
+import matplotlib.pyplot as plt
+from tqdm.notebook import tqdm
+#import xgboost
+import sklearn.cluster
+import tensorflow as tf
+
+#from geoband import API
+
+import pydeck as pdk
+import os
+
+import pandas as pd
+
+
+import cufflinks as cf 
+cf.go_offline(connected=True)
+cf.set_config_file(theme='polar')
+#import deckgljupyter.Layer as deckgl
+
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+
+import warnings
+warnings.filterwarnings('ignore')
+
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = 'Nanum Gothic'
+
+import numpy as np
+from shapely.geometry import Polygon, Point
+from numpy import random
+
+#최적화 solver
+import time
+from mip import Model, xsum, maximize, BINARY  
+
+df_test=gpd.read_file('df_result.geojson')
+df_test
+# 100X100 grid에서 central point 찾기
+df_list = []
+df_list2 = []
+for i in df_test['geometry']:
+    cent = [[i.centroid.coords[0][0],i.centroid.coords[0][1]]]
+    df_list.append(cent)
+    df_list2.append(Point(cent[0]))
+df_test['coord_cent'] = 0
+df_test['geo_cent'] = 0
+df_test['coord_cent']= pd.DataFrame(df_list) # pydeck을 위한 coordinate type
+df_test['geo_cent'] = df_list2 # geopandas를 위한 geometry type
+df_test
+
+# +
+df_result_fin = df_test[(df_test['개발가능']==1)
+                          &(df_test['FS_station']!=1)]
+df_result_fin
+
+points = []
+for i in df_result_fin['coord_cent'] :
+    points.append(i)
+
+w= []
+for i in df_result_fin['w_FS'] :
+    w.append(i)
+
+radius = radius = (1/88.74/1000)*500   
+K = 20
+M = 5000
+
+opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_FS')
+
+
+df_opt_FS= pd.DataFrame(opt_sites_org)
+df_opt_FS.columns = ['lon', 'lat']
+df_opt_FS
+
+# +
+layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_14_possible, # 시각화에 쓰일 데이터프레임
+                  #df_result_fin[df_result_fin['val']!=0],
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[0, 255*1, 0,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+layer2 = pdk.Layer( 'PathLayer', 
+                  df_10_12, 
+                  get_path='coordinate', 
+                  get_width='혼잡빈도강도합/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120,140]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+# Set the viewport location 
+center = [128.5918, 38.20701] 
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+
+
+scatt = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='급속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[50, 50, 200]',
+    pickable=True)
+
+opt = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_FS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 255, 0]',
+    get_line_color = '[0, 0, 0]',
+    line_width_min_pixels=5,
+    pickable=True)
+
+
+
+# Render 
+r = pdk.Deck(layers=[layer2,layer, scatt,opt], initial_view_state=view_state)
+#             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g"
+
+    
+r.to_html()
+
+# +
+# 완속 충전소
+df_result_fin = df_test[(df_test['SS_station']!=1)]
+df_result_fin
+
+points = []
+for i in df_result_fin['coord_cent'] :
+    points.append(i)
+
+w= []
+for i in df_result_fin['w_SS'] :
+    w.append(i)
+
+radius = (1/88.74/1000)*500    
+K = 20
+M = 5000
+
+opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_SS')
+
+
+df_opt_SS= pd.DataFrame(opt_sites_org)
+df_opt_SS.columns = ['lon', 'lat']
+df_opt_SS
+
+# +
+# Make layer 
+
+layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_08[(df_08['val'].isnull()==False) & df_08['val']!=0], # 시각화에 쓰일 데이터프레임 
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[0, 255*정규화인구, 0 ]', # 각 데이터 별 rgb 또는 rgba 값 (0~255)
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+# layer = pdk.Layer( 'PathLayer', 
+#                   df_10_11_time7, 
+#                   get_path='coordinate', 
+#                   get_width='교통량/2', 
+#                   get_color='[255, 255 * 정규화도로폭, 120]', 
+#                   pickable=True, auto_highlight=True 
+#                  ) 
+
+
+# Set the viewport location 
+center = [128.5918, 38.20701] 
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+
+# Set the viewport location 
+center = [128.5918, 38.20701] 
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+
+
+scatt = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='완속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[100, 200, 100,140]',
+    pickable=True)
+
+opt = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_SS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 255, 0]',
+    get_line_color = '[0, 0, 0]',
+    line_width_min_pixels=5,
+    pickable=True)
+
+
+
+# Render 
+r = pdk.Deck(layers=[layer,scatt,opt], initial_view_state=view_state)
+#             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g") 
+
+
+    
+r.to_html()
+# -
+
+df_opt_FS['충전소구분']='급속'
+df_opt_SS['충전소구분']='완속'
+pd.concat([df_opt_FS, df_opt_SS]).to_csv("정류장결과.csv", index=False)
+
 
