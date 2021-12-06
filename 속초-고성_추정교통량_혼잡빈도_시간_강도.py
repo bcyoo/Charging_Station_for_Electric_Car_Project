@@ -172,6 +172,72 @@ r.to_html()
 # -
 
 # ---------------------------------
+# ## 2. 자동차 등록 대수 분석
+#
+#
+# **목적: 어느 지역이 가장 많은 자동차가 등록 되어있는지 분석**
+#
+# **분석 데이터 종류**
+# - df_03: 광양시_자동차등록현황_격자(100X100).geojson
+#
+# **분석 설명**
+# - 분석 시간 단축을 위해 차량이 1대 이상 등록된 곳만 필터링 하였다. 
+# - 초록색에 가까울 수록 차량이 많이 등록 되었다는 것을 의미하며, 검은색은 초록색에 비해 적게 등록되어있음을 의미한다. 그리드가 없는 곳은 차량이 1대 또는 등록이 되지 않은 곳이다. 
+
+df_03= pd.read_csv("03.속초시-고성군_자동차등록현황.csv", encoding='utf-8')
+df_20= gpd.read_file("20.행정경계(읍면동).geojson")
+
+df_03.rename(columns={'총합':'2021'}, inplace=True)
+df_03
+
+df_03.rename(columns={'읍면동':'EMD_NM'}, inplace=True)
+df_03
+
+# +
+
+df_03=df_03.iloc[df_03[["EMD_NM", "2021"]].mean(axis=1).sort_values(ascending=False).index].reindex()
+df_03.columns
+# -
+
+df_03 = pd.merge(df_03, df_20, on = "EMD_NM")
+df_03
+
+# ---------------------------------
+# ## 3. 전기자동차 등록 대수 분석
+#
+#
+# **목적: 어느 지역이 가장 많은 전기 자동차가 등록 되어있는지 분석**
+#
+# **분석 데이터 종류**
+# - df_06: 전기차보급현황(연도별,읍면동별).csv
+# - df_20: 광양시_행정경계(읍면동).geojson
+#
+# **분석 설명**
+# - 지역별/ 연도별 전기차 보금 현황 확인을 위한 전처리를 수행하였다.
+# - 지역 geometry 정보를 함께 통합하였다.
+#
+
+df_06= pd.read_csv("06.속초시-고성군_전기자동차등록현황.csv")
+df_03= pd.read_csv("03.속초시-고성군_자동차등록현황.csv", encoding='utf-8')
+df_20= gpd.read_file("20.행정경계(읍면동).geojson")
+
+df_06.head()
+
+df_06.rename(columns={'전기차 총합':'2021'}, inplace=True)
+df_06
+
+df_06.rename(columns={'읍면동':'EMD_NM'}, inplace=True)
+df_06.head()
+
+ist_EV_dist = df_06
+list_EV_dist=list_EV_dist.iloc[list_EV_dist[["EMD_NM", "2021"]].mean(axis=1).sort_values(ascending=False).index].reindex()
+list_EV_dist.columns
+
+df_EV_ADM = pd.merge(list_EV_dist, df_20, on = "EMD_NM")
+
+df_EV_ADM
+
+# ---------------------------------
 # ## 4. 교통량 분석
 #
 #
@@ -239,6 +305,8 @@ r.to_html()
 # - 7시에 교통량이 많은 곳은 주거지역으로 간주하였으며, 중마동, 마동은 주거지역일 것으로 기대
 #
 
+df_11
+
 # +
 # 대부분의 사람은 오후 3시에 업무를 하는 것으로 가정 (운송 업 포함)
 df_11_time17=df_11[df_11['시간적범위']==17]
@@ -280,6 +348,8 @@ r.to_html()
 #
 #
 
+
+
 # ---------------------------------
 # ## 5. 혼잡빈도강도, 혼잡시간강도 분석
 #
@@ -295,7 +365,7 @@ r.to_html()
 # - 도로폭이 넓을 수록 노란색이며 좁을 수록 붉은색이다.
 # - 선이 굵을 수록 혼잡빈도강도가 높은 것이며, 얇을 수록 낮은 것이다
 
-df_10= gpd.read_file("강원도속초시,고성군_상세도로망.json")
+df_10= gpd.read_file("10.강원도속초시,고성군_상세도로망.json")
 # df_11= pd.read_csv("11.광양시_평일_일별_시간대별_추정교통량.csv")
 df_12= pd.read_csv("12.평일_혼잡빈도강도_강원도 속초시, 고성군.csv")
 df_13= pd.read_csv("13.평일_혼잡시간강도_강원도 속초시, 고성군.csv")
@@ -669,6 +739,99 @@ df_result = pd.merge(df_result, grid_혼잡빈도, on = 'grid_id')
 df_result[df_result['혼잡시간강도합']>0]
 # -
 
+# ## 3. 100X100 Point에 자동차등록현황 부여
+#
+# **목적: grid 마다 전기자동차 보급현황 부여**
+#
+# **분석 데이터 종류**
+# - df_03: 광양시_자동차등록현황_격자(100X100).geojson
+#
+# **분석 설명**
+# - 각 100X100 Point 마다 자동차 등록 대수 부여
+# - 각 요소바다 부여하는데 시간이 다소 소요됨 (약 10분)
+#
+# **분석 설명**
+# - 각 지역에 해당하는 Point를 모두 추출, 전기자동차 보급 현황을 부여하였다. (2020년 등록 대수 만 사용)
+
+df_03
+
+# +
+#자동차 등록대수
+
+# grid 마다 자동차 등록대수 부여하기
+
+df_03_grid = []
+df_superset = df_03[df_03['2021']>1].reset_index() 
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): 
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'])]['grid_id']
+        if len(grid_ids) != 0:
+            df_03_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+
+print('Point와 관련된 grid 개수: ', len(df_03_grid)) # 자동차 등록과 관련된 grid 개수
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_03_grid)):
+    id_idx = df_03_grid[i][0]
+    grids = df_03_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_자동차등록_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_자동차등록_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['totale'])])
+    except:
+        pass
+
+#자동차 등록대수 관련 정보
+try:
+    del df_result['자동차등록']
+except:
+    pass
+
+grid_자동차등록=pd.DataFrame(grid_자동차등록_list)
+grid_자동차등록.columns = ["grid_id","자동차등록"]
+#grid_혼잡빈도[grid_혼잡빈도['승용차_혼잡빈도강도합']>0]
+df_result = pd.merge(df_result, grid_자동차등록, on = 'grid_id') 
+df_result[df_result["자동차등록"]>0]
+# -
+
+# ## 4. 100X100 Point에 전기 자동차등록현황 부여
+#
+# **목적: 전기자동차 등록대 수 만큼 값을 부여**
+#
+# **분석 데이터 종류**
+# - df_06: 전기차보급현황(연도별,읍면동별).csv
+# - df_20: 광양시_행정경계(읍면동).geojson
+#
+# **분석 설명**
+# - 전기자동차를 point에 대입함
+#
+# **분석 설명**
+# - 각 지역에 해당하는 Point를 모두 추출, 전기자동차 보급 현황을 부여하였다. (2020년 등록 대수 만 사용)
+
+df_EV_ADM
+
+# +
+ADM_points = []
+for i in tqdm(range(len(df_EV_ADM))):
+    ADM_points.append([df_EV_ADM.loc[i,'EMD_NM'],
+                       df_EV_ADM.loc[i,'2021'],
+                        point_cent.buffer(0.00000001).within(df_EV_ADM.loc[i,'geometry'])])
+df_result['전기자동차등록'] = 0
+
+for i in range(len(ADM_points)):
+    df_result['전기자동차등록'][ADM_points[i][2]] = ADM_points[i][1]
+df_result
+# -
+
 # ---------------------------------
 # ## 5. 기존 충전소 위치 분석
 #
@@ -813,7 +976,7 @@ df_result.head()
 #
 
 # +
-# df_result['정규화_인구'] = df_result['val'] / df_result['val'].max()
+df_result['정규화_인구'] = df_result['val'] / df_result['val'].max()
 df_result['정규화_교통량_11'] = df_result['교통량_11'] / df_result['교통량_11'].max()
 df_result['정규화_교통량_17'] = df_result['교통량_17'] / df_result['교통량_17'].max()
 df_result['정규화_혼잡빈도강도합'] = df_result['혼잡빈도강도합'] / df_result['혼잡빈도강도합'].max()
@@ -827,7 +990,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn import linear_model
 
 df_LR = df_result
-X = df_LR[["정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+X = df_LR[['정규화_인구',"정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
 # X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
 y = df_LR["FS_station"]
 regr = linear_model.LinearRegression()
@@ -837,7 +1000,7 @@ print('급속충전소 Intercept: ', regr.intercept_)
 print('급속충전소 Coefficients: \n', FS_coeff)
 
 df_LR = df_result
-X = df_LR[["정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+X = df_LR[['정규화_인구',"정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
 # X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
 y = df_LR["SS_station"]
 regr = linear_model.LinearRegression()
@@ -848,22 +1011,26 @@ print('완속충전소 Coefficients: \n', SS_coeff)
 
 # -
 
+'정규화_인구'
+
 df_result['w_FS'] = 0 
-df_result['w_FS'] = (FS_coeff[1]*df_result['정규화_교통량_11']+
+df_result['w_FS'] = (FS_coeff[0]*df_result['정규화_인구']+
+                     FS_coeff[1]*df_result['정규화_교통량_11']+
                      FS_coeff[2]*df_result['정규화_교통량_17']+
                      FS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
-                     FS_coeff[3]*df_result['정규화_혼잡시간강도합']
+                     FS_coeff[4]*df_result['정규화_혼잡시간강도합']
                   )
 df_result['w_SS'] = 0 
-df_result['w_SS'] = (SS_coeff[1]*df_result['정규화_교통량_11']+
+df_result['w_SS'] = (SS_coeff[0]*df_result['정규화_인구']+
+                     SS_coeff[1]*df_result['정규화_교통량_11']+
                      SS_coeff[2]*df_result['정규화_교통량_17']+
                      SS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
-                     SS_coeff[3]*df_result['정규화_혼잡시간강도합']
+                     SS_coeff[4]*df_result['정규화_혼잡시간강도합']
                   )
 
 
 try:    
-    df_result[['grid_id','geometry',
+    df_result[['grid_id','geometry','정규화_인구',
                '정규화_교통량_11','정규화_교통량_17',
               '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합',
                'w_FS','w_SS','개발가능','FS_station','SS_station']].to_file("df_result.geojson", driver="GeoJSON")
@@ -1114,8 +1281,8 @@ for i in df_result_fin['w_FS'] :
     w.append(i)
 
 radius = radius = (1/88.74/1000)*500     ## 500m 반경을 표현함
-K = 20
-M = 5000
+K = 50  ## 총 설치해야하는 설비 개수
+M = 5000  ## 급속 충전소 입지선정지수가 가장 높은 5000개 point
 
 opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_FS')
 
@@ -1125,30 +1292,30 @@ df_opt_FS.columns = ['lon', 'lat']
 df_opt_FS
 
 # +
-layer = pdk.Layer( 'PathLayer', 
-                  df_10_11_time17, 
-                  get_path='coordinate', 
-                  get_width='교통량/2', 
-                  get_color='[255, 255 * 정규화도로폭, 120]', 
-                  pickable=True, auto_highlight=True 
-                 ) 
+# layer = pdk.Layer( 'PathLayer', 
+#                   df_10_11_time17, 
+#                   get_path='coordinate', 
+#                   get_width='교통량/2', 
+#                   get_color='[255, 255 * 정규화도로폭, 120]', 
+#                   pickable=True, auto_highlight=True 
+#                  ) 
 
 
-layer = pdk.Layer( 'PathLayer', 
-                  df_10_13, 
-                  get_path='coordinate', 
-                  get_width='혼잡시간강도합/2', 
-                  get_color='[255, 255 * 정규화도로폭, 120]', 
-                  pickable=True, auto_highlight=True 
-                 ) 
+# layer = pdk.Layer( 'PathLayer', 
+#                   df_10_13, 
+#                   get_path='coordinate', 
+#                   get_width='혼잡시간강도합/2', 
+#                   get_color='[255, 255 * 정규화도로폭, 120]', 
+#                   pickable=True, auto_highlight=True 
+#                  ) 
 
-layer = pdk.Layer( 'PathLayer', 
-                  df_10_12, 
-                  get_path='coordinate', 
-                  get_width='혼잡빈도강도합/2', 
-                  get_color='[255, 255 * 정규화도로폭, 120]', 
-                  pickable=True, auto_highlight=True 
-                 ) 
+# layer = pdk.Layer( 'PathLayer', 
+#                   df_10_12, 
+#                   get_path='coordinate', 
+#                   get_width='혼잡빈도강도합/2', 
+#                   get_color='[255, 255 * 정규화도로폭, 120]', 
+#                   pickable=True, auto_highlight=True 
+#                  ) 
 
 # +
 ## 11, 17, 빈도, 시간
@@ -1197,7 +1364,7 @@ view_state = pdk.ViewState(
     zoom=10
 ) 
 
-
+## 기존 충전소 위치
 scatt = pdk.Layer(
     'ScatterplotLayer',
     df_01_geo[df_01_geo['급속/완속']=='급속'][['lon','lat']],
@@ -1206,7 +1373,7 @@ scatt = pdk.Layer(
     get_radius=200,
     get_fill_color='[50, 50, 200]',
     pickable=True)
-
+## 최적화 충전소 위치
 opt = pdk.Layer(
     'ScatterplotLayer',
     df_opt_FS,
@@ -1245,7 +1412,7 @@ for i in df_result_fin['w_SS'] :
     w.append(i)
 
 radius = (1/88.74/1000)*500     ## 500m 반경을 표현함
-K = 20
+K = 50
 M = 5000
 
 opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_SS')
@@ -1336,3 +1503,46 @@ r.to_html('녹색_기존완속충전소_노란색_제안된 완속충전소 최�
 # 완속충전소 Intercept:  0.008544274167575002
 # 완속충전소 Coefficients: 
 #  [-0.03705014 -0.00521043 -0.33485786  1.71737894]  ## 시간
+
+# +
+# 최적화 급속/완속 충전소 시각화
+# Set the viewport location
+center = [128.574141, 38.201027]
+view_state = pdk.ViewState(
+    longitude=center[0],
+    latitude=center[1],
+    zoom=10
+)
+
+## 급속 충전소 최적화 위치
+opt1 = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_FS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 0, 0]',
+    get_line_color = '[0, 0, 0]',
+    line_width_min_pixels=5,
+    pickable=True)
+
+## 완속 충전소 최적화 위치
+opt2 = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_SS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 128, 0]',
+    get_line_color = '[100, 100, 100]',
+    line_width_min_pixels=5,
+    pickable=True)
+# Render
+r = pdk.Deck(layers=[opt1,opt2], initial_view_state=view_state)
+            # mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g")
+r.to_html('개발가능_전기차충전소_급완속_test3.html')
+# -
+
+
+
+
