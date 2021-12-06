@@ -685,12 +685,14 @@ df_result[df_result['혼잡시간강도합']>0]
 # - 급속 충전소와 완속 충전소 주위 500m를 cover가능하다고 가정하였다.
 # - 기존 충전소가 cover 가능한 point를 구분하였다.
 
+df_01 = pd.read_csv('01.고성군_속초시_충전기설치현황.csv')
+
 # +
 # 기존 완속/ 급속 충전소가 커버하는 위치 제거
 df_01_geo = []
 for i in range(len(df_01)):
     df_01_geo.append([df_01.loc[i,'충전소명'],Point(df_01.loc[i,'lon'],df_01.loc[i,'lat']).buffer(0.003)])
-df_01[df_01['급속/완속']=='완속']
+# df_01[df_01['급속/완속']=='완속']
 df_01_geo = pd.DataFrame(df_01_geo)
 df_01_geo.columns = ["충전소명", "geometry"]
 df_01_geo = pd.merge(df_01, df_01_geo, on = '충전소명')
@@ -745,7 +747,7 @@ scatt2 = pdk.Layer(
 r = pdk.Deck(layers=[layer1,scatt1, layer2,scatt2], initial_view_state=view_state)
 #             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g" 
    
-r.to_html()ㅠ
+r.to_html()
 
 # +
 #Fast-charging Station
@@ -776,3 +778,326 @@ for i in range(len(SS_points)):
     df_result['SS_station'][SS_points[i]] = 1
 
 df_result.head()
+# -
+
+# ### 분석 결과
+# - 전기자동차 충전소가 cover가능한 거리는 임의로 정한 것으로 바뀔 필요가 있다.
+# - 현재는 전기자동차가 많이 등록되어 있지 않아 거리로 임의로 정하였지만 대수가 많아 진다면 전기자동차 등록 대수에 따라 cover 가능한 거리가 바뀌어야 할 것이다.
+# - 즉, 전기자동차 등록이 많은 곳은 cover 가능한 거리를 줄여 더 많은 곳에 충전소를 설치해야 한다.
+# -------------------------------------
+#
+#
+
+# ---------------------------------
+# ## 6. 전기자동차 충전소 위치선정에 대한 영향 요소 분석 및 상관관계 분석
+#
+# 본 지원자는 전기자동차 충전소 위치 선정을 최적화 문제로 풀 것이다. 이를 위해 목적함수가 필요하며 다음과 같은 기준으로 식을 세웠다. 
+#
+# **가정**
+# 1. 전기자동차 충전소 위치는 인구현황, 교통량, 혼잡빈도강도, 혼잡시간강도 만 고려하여 위치를 선정한다.
+# 2. 기존 설치된 전기자동차 충전소는 위 고려사항을 충분히 고려하여 만들어진 곳이다.
+# 3. 전기자동차 충전소는 전방 약 500m를 커버할 수 있다. 
+#
+#
+# **분석 방법**
+#
+# - 고려되는 모든 변수들은 정규화 하였다.
+# - 선형회귀분석을 이용해 현재 제공받은 데이터로부터 전기자동차 충전소 위치에 영향을 주는 요소의 관계를 분석하였다.(Linear Regrssion)
+#
+# - 이때 급속 충전소와 완속 충전소 각각을 따로 분석하였다.  
+#
+# - **분석 Input**: (정규화된) 인구현황, 11시 교통량, 17시 교통량, 혼잡빈도강도, 혼잡시간강도
+#
+# - **분석 Output**: 고려되는 요소들과 각 충전소 사이의 상관계수 
+#
+#
+
+# +
+# df_result['정규화_인구'] = df_result['val'] / df_result['val'].max()
+df_result['정규화_교통량_11'] = df_result['교통량_11'] / df_result['교통량_11'].max()
+df_result['정규화_교통량_17'] = df_result['교통량_17'] / df_result['교통량_17'].max()
+df_result['정규화_혼잡빈도강도합'] = df_result['혼잡빈도강도합'] / df_result['혼잡빈도강도합'].max()
+df_result['정규화_혼잡시간강도합'] = df_result['혼잡시간강도합'] / df_result['혼잡시간강도합'].max()
+# df_result['정규화_자동차등록'] = df_result['자동차등록'] / df_result['자동차등록'].max()
+# df_result['정규화_전기자동차등록'] = df_result['전기자동차등록'] / df_result['전기자동차등록'].max()
+
+
+# 급속/ 완속 관련 objective function 만들기
+from sklearn.linear_model import LinearRegression
+from sklearn import linear_model
+
+df_LR = df_result
+X = df_LR[["정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+# X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+y = df_LR["FS_station"]
+regr = linear_model.LinearRegression()
+regr.fit(X, y)
+FS_coeff = regr.coef_
+print('급속충전소 Intercept: ', regr.intercept_)
+print('급속충전소 Coefficients: \n', FS_coeff)
+
+df_LR = df_result
+X = df_LR[["정규화_교통량_11","정규화_교통량_17","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+# X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+y = df_LR["SS_station"]
+regr = linear_model.LinearRegression()
+regr.fit(X, y)
+SS_coeff = regr.coef_
+print('완속충전소 Intercept: ', regr.intercept_)
+print('완속충전소 Coefficients: \n', SS_coeff)
+
+# -
+
+df_result['w_FS'] = 0 
+df_result['w_FS'] = (FS_coeff[1]*df_result['정규화_교통량_11']+
+                     FS_coeff[2]*df_result['정규화_교통량_17']+
+                     FS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
+                     FS_coeff[3]*df_result['정규화_혼잡시간강도합']
+                  )
+df_result['w_SS'] = 0 
+df_result['w_SS'] = (SS_coeff[1]*df_result['정규화_교통량_11']+
+                     SS_coeff[2]*df_result['정규화_교통량_17']+
+                     SS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
+                     SS_coeff[3]*df_result['정규화_혼잡시간강도합']
+                  )
+
+
+try:    
+    df_result[['grid_id','geometry',
+               '정규화_교통량_11','정규화_교통량_17',
+              '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합',
+               'w_FS','w_SS','개발가능','FS_station','SS_station']].to_file("df_result.geojson", driver="GeoJSON")
+except:
+    pass
+
+
+# ### 분석 결과
+# - 금속충전소와 완속충전소는 고려되는 요소들의 영향이 차이가 있다.
+# - 급속충전소 경우, 정규화_혼잡빈도강도합에 가장 많은 영향을 받았고, 완속충전소 경우, 정규화_인구에 가장 많은 영향을 받았다. 
+# - 이 결과는 차량이 많이 다는 곳에 급속 충전소를 설치하고, 주거 공간이 많이 있는 곳에 완속 충전소를 설치했다고 해석할 수 있다.
+# - 완속 충전소의 경우 급속충전소가 가장 크게 영향을 받은 정규화_혼잡빈도강도합의 변수값이 음수로 분석되었으며, 이는 혼잡한 곳에는 오히려 완속충전소가 설치 되지 않는 것을 의미한다. 
+# - 위 분석 결과는 상식적인 부분과 잘 맞는다.
+# - 따라서 위 결과를 이용하여 추후 최적화 모델의 목적함수 변수 값으로 사용하기 위해 w_fs, w_ss로 가중치값을 계산하였다. 
+# -------------------------------------
+#
+#
+
+# # III. 최적화 문제 정의 및 해결
+#
+# ## 전기자동차 충전소 위치 선정 최적화 모델 정의 및 결과
+#
+# ### 최적화 모델 : Maximal Covering Location Problem (MCLP)
+#
+# - 정의: MCLP는 최대지역커버문제로, 설비가 커버하는 수요 (covered demand)의 합을 최대화 하면서 주어진 K개의 설비를 세울 위치를 선정하는 문제 
+# - 가정
+#
+#     - 설비의 위치가 수요 발생 지점으로부터 일정 거리 Residual 이내에 수요를 커버함. 
+#     - 이때 거리 Residual은 커버리지 거리(covered distance) 라고 함.
+#     - 커버되지 못한 수여는 서비스를 받지 못하는 수요가 아니라 서비스를 받긴 하지만 서비스 받는 설비로 부터의 거리가 커버리지 밖에 있어 만족할 만한 서비스 수준을 제공받지 못하는 수요를 의미
+#     
+#     
+# - Mathematical statement
+#
+#
+#     - i : 수요 포인트 index
+#     - j : 설비 후보지역 index
+#     - I : 수요 포인트 집합
+#     - J : 설비 후보지역 집합
+#     - K : 총 설치해야 하는 설비 개수
+#     - x : 설비 후보 지역 중 위치 j에 설비가 설치되면 1, 그렇지 않으면 0
+#     - y : 적어도 하나의 설비로 그 포인트가 커버가 되면 1, 그렇지 않으면 0
+#     
+#     
+# - Formulation
+#
+# $$
+# \begin{align*}
+# &\text{maximize} \sum_{i\in I} w_i y_i ...(1) \\
+# \text{s.t.} \quad & y_i \le \sum_{j\in N_i}x_j \qquad for \quad all \quad i\in I ... (2)\\
+# &\sum_{j\in J}x_j = K ... (3)\\
+# &x_j, y_i \in \{0,1\} \qquad for \quad all \quad i\in I,j\in J 
+# \end{align*}
+# $$
+#     
+#
+#     -(1) : 목적함수, 가중치 w인 수요 포인트를 최대한 많이 커버하게 해라
+#     -(2) : 수요포인트 i는 설비 후보 지역이 커버하는 거리안에서 적어도 하나 이상의 설비로 부터 커버가 된다. 
+#     -(3) : 총 설치할 설비는 K개 이다.
+#
+
+# +
+def generate_candidate_sites(points,M=100):
+    '''
+    Generate M candidate sites with the convex hull of a point set
+    Input:
+        points: a Numpy array with shape of (N,2)
+        M: the number of candidate sites to generate
+    Return:
+        sites: a Numpy array with shape of (M,2)
+    '''
+    hull = ConvexHull(points)
+    polygon_points = points[hull.vertices]
+    poly = Polygon(polygon_points)
+    min_x, min_y, max_x, max_y = poly.bounds
+    sites = []
+    while len(sites) < M:
+        random_point = Point([random.uniform(min_x, max_x),
+                             random.uniform(min_y, max_y)])
+        if (random_point.within(poly)):
+            sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+
+
+
+def generate_candidate_sites(df_result_fin,M=100):
+    from shapely.geometry import Polygon, Point
+    sites = []
+    idx=np.random.choice(np.array(range(0,len(df_result_fin))), M)
+    for i in range(len(idx)):
+        random_point = Point(np.array(df_result_fin.iloc[idx]['coord_cent'])[i][0],
+                             np.array(df_result_fin.iloc[idx]['coord_cent'])[i][1])
+        sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+def generate_candidate_sites(df_result_fin,Weight,M=100):
+    sites = []
+    idx = df_result_fin.sort_values(by = Weight, ascending = False).iloc[1:M].index
+    for i in range(len(idx)):
+        random_point = Point(np.array(df_result_fin.loc[idx]['coord_cent'])[i][0],
+                             np.array(df_result_fin.loc[idx]['coord_cent'])[i][1])
+        sites.append(random_point)
+    return np.array([(p.x,p.y) for p in sites])
+
+
+
+from scipy.spatial import distance_matrix
+def mclp(points,K,radius,M,df_result_fin,w,Weight):
+
+    """
+    Solve maximum covering location problem
+    Input:
+        points: input points, Numpy array in shape of [N,2]
+        K: the number of sites to select
+        radius: the radius of circle
+        M: the number of candidate sites, which will randomly generated inside
+        the ConvexHull wrapped by the polygon
+    Return:
+        opt_sites: locations K optimal sites, Numpy array in shape of [K,2]
+        f: the optimal value of the objective function
+    """
+    print('----- Configurations -----')
+    print('  Number of points %g' % points.shape[0])
+    print('  K %g' % K)
+    print('  Radius %g' % radius)
+    print('  M %g' % M)
+    import time
+    start = time.time()
+    sites = generate_candidate_sites(df_result_fin,Weight,M)
+    J = sites.shape[0]
+    I = points.shape[0]
+    D = distance_matrix(points,sites)
+    mask1 = D<=radius
+    D[mask1]=1
+    D[~mask1]=0
+
+    from mip import Model, xsum, maximize, BINARY
+
+    # Build model
+    m = Model("mclp")
+    # Add variables
+
+    x = [m.add_var(name = "x%d" % j, var_type = BINARY) for j in range(J)]
+    y = [m.add_var(name = "y%d" % i, var_type = BINARY) for i in range(I)]
+
+
+    m.objective = maximize(xsum(w[i]*y[i] for i in range (I)))
+
+    m += xsum(x[j] for j in range(J)) == K
+
+    for i in range(I):
+        m += xsum(x[j] for j in np.where(D[i]==1)[0]) >= y[i]
+
+    m.optimize()
+    
+    end = time.time()
+    print('----- Output -----')
+    print('  Running time : %s seconds' % float(end-start))
+    print('  Optimal coverage points: %g' % m.objective_value)
+
+    solution = []
+    for i in range(J):
+        if x[i].x ==1:
+            solution.append(int(x[i].name[1:]))
+    opt_sites = sites[solution]
+            
+    return opt_sites,m.objective_value
+
+
+
+
+# +
+import pathlib
+import random
+from functools import reduce
+from collections import defaultdict
+
+import pandas as pd
+import geopandas as gpd
+import folium
+import shapely
+import numpy as np
+from IPython.display import display
+import matplotlib.pyplot as plt
+from tqdm.notebook import tqdm
+#import xgboost
+import sklearn.cluster
+import tensorflow as tf
+
+#from geoband import API
+
+import pydeck as pdk
+import os
+
+import pandas as pd
+
+
+import cufflinks as cf 
+cf.go_offline(connected=True)
+cf.set_config_file(theme='polar')
+#import deckgljupyter.Layer as deckgl
+
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+
+import warnings
+warnings.filterwarnings('ignore')
+
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = 'Nanum Gothic'
+
+import numpy as np
+from shapely.geometry import Polygon, Point
+from numpy import random
+
+#최적화 solver
+import time
+from mip import Model, xsum, maximize, BINARY  
+
+df_test=gpd.read_file('df_result.geojson')
+df_test
+# 100X100 grid에서 central point 찾기
+df_list = []
+df_list2 = []
+for i in df_test['geometry']:
+    cent = [[i.centroid.coords[0][0],i.centroid.coords[0][1]]]
+    df_list.append(cent)
+    df_list2.append(Point(cent[0]))
+df_test['coord_cent'] = 0
+df_test['geo_cent'] = 0
+df_test['coord_cent']= pd.DataFrame(df_list) # pydeck을 위한 coordinate type
+df_test['geo_cent'] = df_list2 # geopandas를 위한 geometry type
+df_test
+# -
+
+
