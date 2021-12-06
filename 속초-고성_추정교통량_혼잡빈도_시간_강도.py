@@ -1098,6 +1098,241 @@ df_test['geo_cent'] = 0
 df_test['coord_cent']= pd.DataFrame(df_list) # pydeck을 위한 coordinate type
 df_test['geo_cent'] = df_list2 # geopandas를 위한 geometry type
 df_test
-# -
+
+# +
+## 급속충전소 500m반경
+df_result_fin = df_test[(df_test['개발가능']==1)
+                          &(df_test['FS_station']!=1)]
+df_result_fin
+
+points = []
+for i in df_result_fin['coord_cent'] :
+    points.append(i)
+
+w= []
+for i in df_result_fin['w_FS'] :
+    w.append(i)
+
+radius = radius = (1/88.74/1000)*500     ## 500m 반경을 표현함
+K = 20
+M = 5000
+
+opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_FS')
 
 
+df_opt_FS= pd.DataFrame(opt_sites_org)
+df_opt_FS.columns = ['lon', 'lat']
+df_opt_FS
+
+# +
+layer = pdk.Layer( 'PathLayer', 
+                  df_10_11_time17, 
+                  get_path='coordinate', 
+                  get_width='교통량/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+
+layer = pdk.Layer( 'PathLayer', 
+                  df_10_13, 
+                  get_path='coordinate', 
+                  get_width='혼잡시간강도합/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+layer = pdk.Layer( 'PathLayer', 
+                  df_10_12, 
+                  get_path='coordinate', 
+                  get_width='혼잡빈도강도합/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+# +
+## 11, 17, 빈도, 시간
+#  [ 0.19847065 -0.35500038 -1.18293595  1.71700062]  ## 17, 빈도, 시간
+layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_14_possible, # 시각화에 쓰일 데이터프레임
+                  #df_result_fin[df_result_fin['val']!=0],
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[0, 255*1, 0,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+
+layer1 = pdk.Layer( 'PathLayer', 
+                  df_10_11_time17, 
+                  get_path='coordinate', 
+                  get_width='교통량/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+
+layer2 = pdk.Layer( 'PathLayer', 
+                  df_10_12, 
+                  get_path='coordinate', 
+                  get_width='혼잡빈도강도합/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120,140]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+
+layer3 = pdk.Layer( 'PathLayer', 
+                  df_10_13, 
+                  get_path='coordinate', 
+                  get_width='혼잡시간강도합/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+# Set the viewport location 
+center = [128.5918, 38.20701] # 속초 센터 [128.5918, 38.20701]
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+
+
+scatt = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='급속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[50, 50, 200]',
+    pickable=True)
+
+opt = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_FS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 255, 0]',
+    get_line_color = '[0, 0, 0]',
+    line_width_min_pixels=5,
+    pickable=True)
+
+
+
+# Render 
+r = pdk.Deck(layers=[layer,  scatt,opt], initial_view_state=view_state)
+#             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g"
+
+    
+r.to_html('파란_기존급속충전소_노란_제안된 급속 최적화 지역.html')
+
+
+## 노란색 : 제안된 최적화 지역
+## 파란색 : 기존 급속 충전소
+
+# +
+# 완속 충전소 500m 반경
+df_result_fin = df_test[(df_test['SS_station']!=1)]
+df_result_fin
+
+points = []
+for i in df_result_fin['coord_cent'] :
+    points.append(i)
+
+w= []
+for i in df_result_fin['w_SS'] :
+    w.append(i)
+
+radius = (1/88.74/1000)*500     ## 500m 반경을 표현함
+K = 20
+M = 5000
+
+opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_SS')
+
+
+df_opt_SS= pd.DataFrame(opt_sites_org)
+df_opt_SS.columns = ['lon', 'lat']
+df_opt_SS
+
+# +
+# Make layer 
+
+layer1 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_08[(df_08['val'].isnull()==False) & df_08['val']!=0], # 시각화에 쓰일 데이터프레임 
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[0, 255*정규화인구, 0 ]', # 각 데이터 별 rgb 또는 rgba 값 (0~255)
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+layer2 = pdk.Layer( 'PathLayer', 
+                  df_10_11_time11, 
+                  get_path='coordinate', 
+                  get_width='교통량/2', 
+                  get_color='[255, 255 * 정규화도로폭, 120]', 
+                  pickable=True, auto_highlight=True 
+                 ) 
+
+
+layer3 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_14_possible, # 시각화에 쓰일 데이터프레임
+                  #df_result_fin[df_result_fin['val']!=0],
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[0, 255*1, 0,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+
+# Set the viewport location 
+center = [128.5918, 38.20701] # 속초 센터 [128.5918, 38.20701]
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+
+
+scatt = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='완속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[100, 200, 100,140]',
+    pickable=True)
+
+opt = pdk.Layer(
+    'ScatterplotLayer',
+    df_opt_SS,
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=200,
+    get_fill_color='[255, 255, 0]',
+    get_line_color = '[0, 0, 0]',
+    line_width_min_pixels=5,
+    pickable=True)
+
+
+
+# Render 
+r = pdk.Deck(layers=[layer1,layer3,scatt,opt], initial_view_state=view_state)
+#             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g") 
+
+
+    
+r.to_html('녹색_기존완속충전소_노란색_제안된 완속충전소 최적화지역.html')
+
+## 노란색 : 제안된 최적화 지역
+## 녹색 : 기존 완속 충전소
+
+# +
+## 11 , 17, 빈도, 시간 순
+
+# 급속충전소 Intercept:  0.0035773547213494477
+# 급속충전소 Coefficients: 
+#  [ 0.19847065 -0.35500038 -1.18293595  1.71700062]  ## 17, 빈도, 시간
+# 완속충전소 Intercept:  0.008544274167575002
+# 완속충전소 Coefficients: 
+#  [-0.03705014 -0.00521043 -0.33485786  1.71737894]  ## 시간
