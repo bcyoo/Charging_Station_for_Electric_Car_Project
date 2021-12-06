@@ -262,7 +262,7 @@ layer = pdk.Layer( 'PathLayer',
                   get_color='[255, 255 * 정규화도로폭, 120]', 
                   pickable=True, auto_highlight=True 
                  ) 
-center = [127.696280, 34.940640] 
+center = [128.5918, 38.20701] # 속초 센터 [128.5918, 38.20701]
 view_state = pdk.ViewState( 
     longitude=center[0], 
     latitude=center[1], 
@@ -492,9 +492,9 @@ df_result[df_result['개발가능']==1]
 # - 각 요소바다 부여하는데 시간이 다소 소요됨 (약 10분)
 
 # +
-# grid 마다 7시 교통량 부여
+# grid 마다 11시 교통량 부여
 df_10_11_time11_grid = []
-df_superset = df_10_11_time11[df_10_11_time7['교통량']>0]
+df_superset = df_10_11_time11[df_10_11_time11['교통량']>0]
 
 #시간이 오래 걸립니다.
 for i in tqdm(range(len(df_superset))): #len(df_superset)
@@ -509,8 +509,8 @@ print('Point와 관련된 grid 개수: ',len(df_10_11_time11_grid))
 
 df_superset['grid_ids'] = 0
 for i in range(len(df_10_11_time11_grid)):
-    id_idx = df_10_11_time7_grid[i][0]
-    grids = df_10_11_time7_grid[i][1]
+    id_idx = df_10_11_time11_grid[i][0]
+    grids = df_10_11_time11_grid[i][1]
     df_superset['grid_ids'][id_idx] = grids
 
 
@@ -524,12 +524,255 @@ for i in tqdm(df_result['grid_id']):
 
 #2시 승용차 혼잡 빈도 관련 정보
 try:
-    del df_result['교통량_07']
+    del df_result['교통량_11']
 except:
     pass
 
 grid_=pd.DataFrame(grid_list)
-grid_.columns = ["grid_id","교통량_07"]
+grid_.columns = ["grid_id","교통량_11"]
 #grid_혼잡빈도[grid_혼잡빈도['승용차_혼잡빈도강도합']>0]
 df_result = pd.merge(df_result, grid_, on = 'grid_id')
-df_result[df_result['교통량_07']>0]
+df_result[df_result['교통량_11']>0]
+
+# +
+# grid 마다 17시 교통량 부여
+df_10_11_time17_grid = []
+df_superset = df_10_11_time17[df_10_11_time17['교통량']>0]
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_10_11_time17_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_10_11_time17_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_10_11_time17_grid)):
+    id_idx = df_10_11_time17_grid[i][0]
+    grids = df_10_11_time17_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_혼잡빈도_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_혼잡빈도_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['교통량'])])
+    except:
+        pass
+
+grid_혼잡빈도=pd.DataFrame(grid_혼잡빈도_list)
+grid_혼잡빈도.columns = ["grid_id","교통량_17"]
+grid_혼잡빈도[grid_혼잡빈도['교통량_17']>0]
+
+
+#17시 승용차 혼잡 빈도 관련 정보
+try:
+    del df_result['교통량_17']
+except:
+    pass
+
+grid_혼잡빈도=pd.DataFrame(grid_혼잡빈도_list)
+grid_혼잡빈도.columns = ["grid_id","교통량_17"]
+#grid_혼잡빈도[grid_혼잡빈도['승용차_혼잡빈도강도합']>0]
+df_result = pd.merge(df_result, grid_혼잡빈도, on = 'grid_id')
+df_result[df_result['교통량_17']>0]
+
+# +
+# grid 마다 혼잡빈도강도 부여
+df_10_grid = []
+df_superset = df_10_12[df_10_12['혼잡빈도강도합']>0]
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_10_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_10_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_10_grid)):
+    id_idx = df_10_grid[i][0]
+    grids = df_10_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_혼잡빈도_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_혼잡빈도_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['혼잡빈도강도합'])])
+    except:
+        pass
+
+#혼잡빈도강도 관련 정보
+try:
+    del df_result['혼잡빈도강도합']
+except:
+    pass
+
+grid_혼잡빈도=pd.DataFrame(grid_혼잡빈도_list)
+grid_혼잡빈도.columns = ["grid_id","혼잡빈도강도합"]
+#grid_혼잡빈도[grid_혼잡빈도['승용차_혼잡빈도강도합']>0]
+df_result = pd.merge(df_result, grid_혼잡빈도, on = 'grid_id')
+df_result[df_result['혼잡빈도강도합']>0]
+
+# +
+# grid 마다 혼잡시간강도합 부여
+df_10_grid = []
+df_superset = df_10_13[df_10_13['혼잡시간강도합']>0]
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_10_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_10_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_10_grid)):
+    id_idx = df_10_grid[i][0]
+    grids = df_10_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_혼잡빈도_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_혼잡빈도_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['혼잡시간강도합'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['혼잡시간강도합']
+except:
+    pass
+
+grid_혼잡빈도=pd.DataFrame(grid_혼잡빈도_list)
+grid_혼잡빈도.columns = ["grid_id","혼잡시간강도합"]
+#grid_혼잡빈도[grid_혼잡빈도['승용차_혼잡빈도강도합']>0]
+df_result = pd.merge(df_result, grid_혼잡빈도, on = 'grid_id')
+df_result[df_result['혼잡시간강도합']>0]
+# -
+
+# ---------------------------------
+# ## 5. 기존 충전소 위치 분석
+#
+#
+# **목적: 기존 충전소가 있는 위치를 분석, 기존 충전소가 커버가능한 범위는 제외하고 분석**
+#
+# **분석 데이터 종류**
+# - df_01: 01.고성군_속초시_충전기설치현황.csv
+#
+# **분석 설명**
+# - 급속 충전소 (Fast-charing Station, FS) 와 완속 충전소(Slow-charging Station, SS) 의 위치를 확인하였다.
+#     - 급속: 파란색
+#     - 완속: 초록색
+# - 급속 충전소와 완속 충전소 주위 500m를 cover가능하다고 가정하였다.
+# - 기존 충전소가 cover 가능한 point를 구분하였다.
+
+# +
+# 기존 완속/ 급속 충전소가 커버하는 위치 제거
+df_01_geo = []
+for i in range(len(df_01)):
+    df_01_geo.append([df_01.loc[i,'충전소명'],Point(df_01.loc[i,'lon'],df_01.loc[i,'lat']).buffer(0.003)])
+df_01[df_01['급속/완속']=='완속']
+df_01_geo = pd.DataFrame(df_01_geo)
+df_01_geo.columns = ["충전소명", "geometry"]
+df_01_geo = pd.merge(df_01, df_01_geo, on = '충전소명')
+df_01_geo['coordinates'] = df_01_geo['geometry'].apply(polygon_to_coordinates) 
+df_01_geo = pd.DataFrame(df_01_geo)
+
+
+
+
+
+center = [128.5918, 38.20701] # 속초 센터 [128.5918, 38.20701]
+view_state = pdk.ViewState( 
+    longitude=center[0], 
+    latitude=center[1], 
+    zoom=10
+) 
+layer1 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_01_geo[df_01_geo['급속/완속']=='급속'][['coordinates']], # 시각화에 쓰일 데이터프레임
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[50, 50, 200,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+layer2 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  df_01_geo[df_01_geo['급속/완속']=='완속'][['coordinates']], # 시각화에 쓰일 데이터프레임
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[100, 200, 100,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+scatt1 = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='급속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=50,
+    get_fill_color='[50, 50, 200]',
+    pickable=True)
+
+scatt2 = pdk.Layer(
+    'ScatterplotLayer',
+    df_01_geo[df_01_geo['급속/완속']=='완속'][['lon','lat']],
+    get_position = ['lon','lat'],
+    auto_highlight=True,
+    get_radius=50,
+    get_fill_color='[100, 200, 100]',
+    pickable=True)
+
+
+r = pdk.Deck(layers=[layer1,scatt1, layer2,scatt2], initial_view_state=view_state)
+#             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g" 
+   
+r.to_html()ㅠ
+
+# +
+#Fast-charging Station
+
+#시간이 많이 걸립니다.
+df_01_FS = df_01_geo[df_01_geo['급속/완속']=='급속']
+FS_points = []
+for i in tqdm(range(len(df_01_FS))):
+    try:
+        FS_points.append(point_cent.buffer(0.00000001).within(df_01_FS.loc[i,'geometry']))
+    except: 
+        pass
+df_result['FS_station'] = 0
+for i in range(len(FS_points)):
+    df_result['FS_station'][FS_points[i]] = 1
+
+#Slow-charging Station
+df_01_SS = df_01_geo[df_01_geo['급속/완속']=='완속']    
+SS_points = [] 
+for i in tqdm(range(len(df_01_geo))):
+    try:
+        SS_points.append(point_cent.buffer(0.00000001).within(df_01_SS.loc[i,'geometry']))
+    except:
+        pass
+
+df_result['SS_station'] = 0
+for i in range(len(SS_points)):
+    df_result['SS_station'][SS_points[i]] = 1
+
+df_result.head()
