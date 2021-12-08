@@ -517,14 +517,12 @@ for i in range(len(df_14_possible["coordinates"])):
                    df_14_possible["coordinates"].iloc[i][j] = list(df_14_possible["coordinates"].iloc[i][j] + v)
 df_14_possible["coordinates"]
 
-df_14_possible
-
 # +
 layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
                   df_14_possible, # 시각화에 쓰일 데이터프레임
                   #df_result_fin[df_result_fin['val']!=0],
                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
-                  get_fill_color='[255, 255, 255,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  get_fill_color='[153, 255, 255,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
                   pickable=True, # 지도와 interactive 한 동작 on 
                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
                  ) 
@@ -565,11 +563,11 @@ df_08
 shapely.speedups.enable()
 df_result = df_08[['gid','grid_id','val','geometry','coordinates','coord_cent','geo_cent']]
 df_result['val'] = df_result['val'].fillna(0)
-
-# #굉장히 오래걸림
 point_cent= gpd.GeoDataFrame(df_result[['grid_id','geo_cent']],geometry = 'geo_cent')
-within_points=point_cent.buffer(0.00000001).within(geo_possible.loc[0,'geometry'])
-pd.DataFrame(within_points).to_csv("within_points.csv", index = False)
+
+#굉장히 오래걸림
+# within_points=point_cent.buffer(0.00000001).within(geo_possible.loc[0,'geometry'])
+# pd.DataFrame(within_points).to_csv("within_points.csv", index = False)
 
 within_points=pd.read_csv("within_points.csv")
 df_result['개발가능'] = 0
@@ -579,20 +577,17 @@ df_result[df_result['개발가능']==1]
 
 
 ## 71574개 중 9042개가 개발 가능한 구역
+
+# +
+# df_30= gpd.read_file("상권데이터.geojson") # geojson -> json
+
+# df_30.drop(columns='geometry', inplace = True)
+
+# df_result = pd.merge(df_result, df_30, how='outer', on = 'gid')
+
+# df_result = df_result.fillna(0)
+# df_result
 # -
-
-df_result
-
-df_30= gpd.read_file("상권데이터.geojson") # geojson -> json
-df_30
-
-df_30.drop(columns='geometry', inplace = True)
-
-df_result = pd.merge(df_result, df_30, how='outer', on = 'gid')
-df_result
-
-df_result = df_result.fillna(0)
-df_result
 
 # ### 분석 결과
 # - 기본 상식선에서 개발 가능한 토지를 구분하였으나 토지관련 전문가를 통해 더 자세하게 토지를 추가/제거 한다면 더 현실적인 결과가 나올 것이다.
@@ -876,6 +871,283 @@ df_result[df_result['혼잡시간강도합']>0]
 ## 임의 gird 중 71581개 중 혼잡시간강도 6861개가 개발가능여부
 # -
 
+df_21 = gpd.read_file('21.최종상권_geometry.geojson')
+df_21
+
+# +
+# %%time
+# grid 마다 정규화_score_search_point 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['정규화_score_search_point'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['정규화_score_search_point']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","정규화_score_search_point"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+
+
+
+# +
+# %%time
+# grid 마다 정규화_score_view_count 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['정규화_score_view_count'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['정규화_score_view_count']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","정규화_score_view_count"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+
+
+
+# +
+# %%time
+# grid 마다 정규화_score_review_count 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['정규화_score_review_count'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['정규화_score_review_count']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","정규화_score_review_count"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+
+
+
+# +
+# %%time
+# grid 마다 정규화_score_stay 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['정규화_score_stay'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['정규화_score_stay']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","정규화_score_stay"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+
+
+
+# +
+# %%time
+# grid 마다 정규화_score_ctgr 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['정규화_score_ctgr'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['정규화_score_ctgr']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","정규화_score_ctgr"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+
+
+# +
+# %%time
+# grid 마다 동_유동인구 부여
+df_21_grid = []
+df_superset = df_21
+
+#시간이 오래 걸립니다.
+for i in tqdm(range(len(df_superset))): #len(df_superset)
+    try:
+        grid_ids = point_cent[point_cent.within(df_superset.loc[i,'geometry'].buffer(0.001))]['grid_id']
+        if len(grid_ids) != 0:
+            df_21_grid.append([i,str(tuple(grid_ids))])
+    except :
+        pass
+
+print('Point와 관련된 grid 개수: ',len(df_21_grid))
+
+df_superset['grid_ids'] = 0
+for i in range(len(df_21_grid)):
+    id_idx = df_21_grid[i][0]
+    grids = df_21_grid[i][1]
+    df_superset['grid_ids'][id_idx] = grids
+
+
+#시간이 오래 걸립니다.
+grid_21_list = []
+for i in tqdm(df_result['grid_id']):
+    try:
+        grid_21_list.append([i, sum(df_superset[df_superset['grid_ids'].str.contains(i)==True]['동_유동인구'])])
+    except:
+        pass
+
+#혼잡시간강도합 관련 정보
+try:
+    del df_result['동_유동인구']
+except:
+    pass
+
+grid_21=pd.DataFrame(grid_21_list)
+grid_21.columns = ["grid_id","동_유동인구"]
+
+df_result = pd.merge(df_result, grid_21, on = 'grid_id')
+df_result
+# -
+
 # ---------------------------------
 # ## 5. 기존 충전소 위치 분석
 #
@@ -958,7 +1230,6 @@ r = pdk.Deck(layers=[layer1,scatt1, layer2,scatt2], initial_view_state=view_stat
 r.to_html()
 
 # +
-# %%time
 #Fast-charging Station
 
 #시간이 많이 걸립니다.
@@ -1021,16 +1292,17 @@ df_result.head()
 #
 #
 
+["정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_score_search_point','정규화_score_view_count','정규화_score_review_count','정규화_score_stay','정규화_score_ctgr','동_유동인구' ]
+[-0.33602215        0.16874161       -1.25766785          1.68857243         0.35152457               4.08304436                  -3.96932198                -0.02501838        -0.04454453      -2.36697614]
+
 # +
 ## 상권, 교통량 혼잡강도 Linear Regresiion 비교 설정
 
-# df_result['정규화_인구'] = df_result['val'] / df_result['val'].max()
 df_result['정규화_교통량_11'] = df_result['교통량_11'] / df_result['교통량_11'].max()
 df_result['정규화_교통량_14'] = df_result['교통량_14'] / df_result['교통량_14'].max()
 df_result['정규화_혼잡빈도강도합'] = df_result['혼잡빈도강도합'] / df_result['혼잡빈도강도합'].max()
 df_result['정규화_혼잡시간강도합'] = df_result['혼잡시간강도합'] / df_result['혼잡시간강도합'].max()
-# df_result['정규화_자동차등록'] = df_result['자동차등록'] / df_result['자동차등록'].max()
-# df_result['정규화_전기자동차등록'] = df_result['전기자동차등록'] / df_result['전기자동차등록'].max()
+
 
 
 # 급속/ 완속 관련 objective function 만들기
@@ -1038,8 +1310,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn import linear_model
 
 df_LR = df_result
-X = df_LR[['정규화_인구',"정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_자동차등록','정규화_전기자동차등록']]
-# X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+X = df_LR[["정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_score_search_point','정규화_score_view_count','정규화_score_review_count','정규화_score_stay','정규화_score_ctgr','동_유동인구' ]]
+# X = df_LR[["정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'동_유동인구' ]]
 y = df_LR["FS_station"]
 regr = linear_model.LinearRegression()
 regr.fit(X, y)
@@ -1048,72 +1320,107 @@ print('급속충전소 Intercept: ', regr.intercept_)
 print('급속충전소 Coefficients: \n', FS_coeff)
 
 df_LR = df_result
-X = df_LR[['정규화_인구',"정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_자동차등록','정규화_전기자동차등록']]
-# X = df_LR[["정규화_인구","정규화_혼잡빈도강도합","정규화_혼잡시간강도합"]]
+X = df_LR[["정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_score_search_point','정규화_score_view_count','정규화_score_review_count','정규화_score_stay','정규화_score_ctgr','동_유동인구']]
+# X = df_LR[["정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'동_유동인구' ]]
 y = df_LR["SS_station"]
 regr = linear_model.LinearRegression()
 regr.fit(X, y)
 SS_coeff = regr.coef_
 print('완속충전소 Intercept: ', regr.intercept_)
 print('완속충전소 Coefficients: \n', SS_coeff)
-
-
-# +
-# import matplotlib.pyplot as plt
-# # %matplotlib inline
-# # 주피터 노트북에 최적화 된 그래프 설정(코랩 사용불가)
-# # # %matplotlib notebook
-# # 인터렉티브 그래프 가능(코랩 사용불가)
-# import matplotlib.pyplot as plt
-# import platform
-# from matplotlib import font_manager, rc
-# plt.rcParams['axes.unicode_minus'] = False
-# if platform.system() == 'Darwin':
-#     f_path = '/Library/Fonts/Arial Unicode.ttf'
-# elif platform.system() == 'Windows':
-#     f_path = 'c:/Windows/Fonts/malgun.ttf'
-# font_name = font_manager.FontProperties(fname=f_path).get_name()
-# rc('font', family=font_name)
-# print('Hangul font is set!')
-# X = [0.44339999, -0.477551,    0.30061851, -1.18477522 , 1.69861111, -0.028881 , 0.02993641]
-# y = [1.35935644, -1.78693598,  1.6607159,  -0.26307549,  1.54099541, -0.14663886,  0.23818326]
-# plt.figure(figsize=(15,10))
-# plt.plot(X)
-# plt.plot(y)
-# plt.title("선형회귀분석 coefficient")
-# plt.xticks([0,1,2,3,4,5,6], ['정규화_인구', '정규화_교통량_11', '정규화_교통량_14', '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합', '정규화_자동차등록', '정규화_전기자동차등록'], rotation=20)
-# plt.xlabel("파란색 급속, 주황색 완속");
 # -
 
 
+import statsmodels.api as sm
+X = sm.add_constant(X, has_constant='add')
+modeling = sm.OLS(y, X)
+modeling.fit().summary()
+
+import matplotlib.pyplot as plt
+# %matplotlib inline
+# 주피터 노트북에 최적화 된 그래프 설정(코랩 사용불가)
+# # %matplotlib notebook
+# 인터렉티브 그래프 가능(코랩 사용불가)
+import matplotlib.pyplot as plt
+import platform
+from matplotlib import font_manager, rc
+plt.rcParams['axes.unicode_minus'] = False
+if platform.system() == 'Darwin':
+    f_path = '/Library/Fonts/Arial Unicode.ttf'
+elif platform.system() == 'Windows':
+    f_path = 'c:/Windows/Fonts/malgun.ttf'
+font_name = font_manager.FontProperties(fname=f_path).get_name()
+rc('font', family=font_name)
+plt.figure(figsize=(15,10))
+print('Hangul font is set!')
+X =  [-4.00518236e-01 , 2.13175470e-01, -1.18239659e+00 , 1.66557803e+00,
+  1.30079454e+00, -8.83403255e-01, -1.09630627e-01, -2.46922232e-05]
+y =   [-1.56508774e+00 , 1.50652688e+00 , 3.36240341e-02 , 1.24144867e+00,
+ -6.51187266e-01 , 1.65528294e-01 , 2.77755389e-01 , 2.69448915e-05]
+plt.plot(y)
+plt.title("선형회귀분석 coefficient")
+plt.xticks([0,1,2,3,4,5,6,7], ["정규화_교통량_11","정규화_교통량_14","정규화_혼잡빈도강도합","정규화_혼잡시간강도합",'정규화_score_search_point','정규화_score_stay','정규화_score_ctgr','동_유동인구'], rotation=20)
+plt.xlabel("파란색 급속, 주황색 완속");
+
+
 df_result['w_FS'] = 0 
-df_result['w_FS'] = (FS_coeff[0]*df_result['정규화_인구']+
-                     FS_coeff[1]*df_result['정규화_교통량_11']+
-                     FS_coeff[2]*df_result['정규화_교통량_14']+
-                     FS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
-                     FS_coeff[3]*df_result['정규화_혼잡시간강도합']+
-                     FS_coeff[3]*df_result['정규화_자동차등록']+
-                     FS_coeff[3]*df_result['정규화_전기자동차등록']
+df_result['w_FS'] = (FS_coeff[0]*df_result['정규화_교통량_11']+
+                     FS_coeff[1]*df_result['정규화_교통량_14']+
+                     FS_coeff[2]*df_result['정규화_혼잡빈도강도합']+
+                     FS_coeff[2]*df_result['정규화_혼잡시간강도합']+
+                     FS_coeff[3]*df_result['정규화_score_search_point']+
+                     FS_coeff[3]*df_result['정규화_score_view_count']+
+                     FS_coeff[3]*df_result['정규화_score_review_count']+
+                     FS_coeff[3]*df_result['정규화_score_stay']+
+                     FS_coeff[3]*df_result['정규화_score_ctgr']+
+                     FS_coeff[3]*df_result['동_유동인구']
                     )
 df_result['w_SS'] = 0 
-df_result['w_SS'] = (SS_coeff[0]*df_result['정규화_인구']+
-                     SS_coeff[1]*df_result['정규화_교통량_11']+
-                     SS_coeff[2]*df_result['정규화_교통량_14']+
-                     SS_coeff[3]*df_result['정규화_혼잡빈도강도합']+
-                     SS_coeff[3]*df_result['정규화_혼잡시간강도합']+
-                     SS_coeff[3]*df_result['정규화_자동차등록']+
-                     SS_coeff[3]*df_result['정규화_전기자동차등록']
+df_result['w_SS'] = (SS_coeff[0]*df_result['정규화_교통량_11']+
+                     SS_coeff[1]*df_result['정규화_교통량_14']+
+                     SS_coeff[2]*df_result['정규화_혼잡빈도강도합']+
+                     SS_coeff[2]*df_result['정규화_혼잡시간강도합']+
+                     SS_coeff[3]*df_result['정규화_score_search_point']+
+                     SS_coeff[3]*df_result['정규화_score_view_count']+
+                     SS_coeff[3]*df_result['정규화_score_review_count']+
+                     SS_coeff[3]*df_result['정규화_score_stay']+
+                     SS_coeff[3]*df_result['정규화_score_ctgr']+
+                     SS_coeff[3]*df_result['동_유동인구']
                     )
 
+
+# +
+# df_result['w_FS'] = 0 
+# df_result['w_FS'] = (FS_coeff[1]*df_result['정규화_교통량_14']+
+#                      FS_coeff[2]*df_result['정규화_혼잡빈도강도합']+
+#                      FS_coeff[2]*df_result['정규화_혼잡시간강도합']+
+#                      FS_coeff[3]*df_result['동_유동인구']
+#                     )
+# df_result['w_SS'] = 0 
+# df_result['w_SS'] = (SS_coeff[1]*df_result['정규화_교통량_14']+
+#                      SS_coeff[2]*df_result['정규화_혼잡빈도강도합']+
+#                      SS_coeff[2]*df_result['정규화_혼잡시간강도합']+
+#                      SS_coeff[3]*df_result['동_유동인구']
+#                     )
+# -
 
 try:    
     df_result[['grid_id','geometry',
-               '정규화_인구','정규화_교통량_11','정규화_교통량_14',
-               '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합', '정규화_자동차등록','정규화_전기자동차등록',
+               '정규화_교통량_11','정규화_교통량_14',
+               '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합', '정규화_score_search_point','정규화_score_view_count','정규화_score_review_count','정규화_score_stay','정규화_score_ctgr','동_유동인구',
                'w_FS','w_SS','개발가능','FS_station','SS_station']].to_file("df_result.geojson", driver="GeoJSON")
 except:
     pass
 
+
+# +
+# try:    
+#     df_result[['grid_id','geometry',
+#                '정규화_교통량_14',
+#                '정규화_혼잡빈도강도합', '정규화_혼잡시간강도합','동_유동인구',
+#                'w_FS','w_SS','개발가능','FS_station','SS_station']].to_file("df_result.geojson", driver="GeoJSON")
+# except:
+#     pass
 
 # +
 ##### 파일명 예시 : df_result_123456
@@ -1201,6 +1508,9 @@ def generate_candidate_sites(points,M=100):
             sites.append(random_point)
     return np.array([(p.x,p.y) for p in sites])
 
+
+
+
 def generate_candidate_sites(df_result_fin,M=100):
     from shapely.geometry import Polygon, Point
     sites = []
@@ -1219,6 +1529,8 @@ def generate_candidate_sites(df_result_fin,Weight,M=100):
                              np.array(df_result_fin.loc[idx]['coord_cent'])[i][1])
         sites.append(random_point)
     return np.array([(p.x,p.y) for p in sites])
+
+
 
 from scipy.spatial import distance_matrix
 def mclp(points,K,radius,M,df_result_fin,w,Weight):
@@ -1281,6 +1593,9 @@ def mclp(points,K,radius,M,df_result_fin,w,Weight):
     opt_sites = sites[solution]
             
     return opt_sites,m.objective_value
+
+
+
 
 # +
 import pathlib
@@ -1346,6 +1661,84 @@ df_test['geo_cent'] = df_list2 # geopandas를 위한 geometry type
 df_test
 
 # +
+# for z in [50, 100, 200, 300, 400, 500]:
+
+#     ## 급속충전소 500m반경
+#     df_result_fin = df_test[(df_test['개발가능']==1)
+#                               &(df_test['FS_station']!=1)]
+#     df_result_fin
+
+#     points = []
+#     for i in df_result_fin['coord_cent'] :
+#         points.append(i)
+
+#     w= []
+#     for i in df_result_fin['w_FS'] :
+#         w.append(i)
+
+#     radius = radius = (1/88.74/1000)*z     ## 500m 반경을 표현함
+#     K = 30  ## 총 설치해야하는 설비 개수
+#     M = 5000  ## 급속 충전소 입지선정지수가 가장 높은 5000개 point
+
+#     opt_sites_org,f = mclp(np.array(points),K,radius,M,df_result_fin,w,'w_FS')
+
+
+#     df_opt_FS= pd.DataFrame(opt_sites_org)
+#     df_opt_FS.columns = ['lon', 'lat']
+
+#     # Set the viewport location 
+#     center = [128.5918, 38.27701] # 속초 센터 [128.5918, 38.20701]
+#     view_state = pdk.ViewState( 
+#         longitude=center[0], 
+#         latitude=center[1], 
+#         zoom=10
+#     ) 
+
+#     ## 기존 충전소 위치
+#     scatt = pdk.Layer(
+#         'ScatterplotLayer',
+#         df_01_geo[df_01_geo['급속/완속']=='급속'][['lon','lat']],
+#         get_position = ['lon','lat'],
+#         auto_highlight=True,
+#         get_radius=200,
+#         get_fill_color='[50, 50, 200]',
+#         pickable=True)
+#     ## 최적화 충전소 위치
+#     opt = pdk.Layer(
+#         'ScatterplotLayer',
+#         df_opt_FS,
+#         get_position = ['lon','lat'],
+#         auto_highlight=True,
+#         get_radius=200,
+#         get_fill_color='[255, 255, 0]',
+#         get_line_color = '[0, 0, 0]',
+#         line_width_min_pixels=5,
+#         pickable=True)
+
+
+
+#     # Render 
+#     r = pdk.Deck(layers=[scatt,opt], initial_view_state=view_state)
+#     #             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g"
+
+
+#     r.to_html(f'급속_반경{z}m_reviewX.html')
+
+# -
+
+
+
+
+
+
+
+
+
+
+
+
+
+# +
 # %%time
 ## 급속충전소 500m반경
 df_result_fin = df_test[(df_test['개발가능']==1)
@@ -1360,7 +1753,7 @@ w= []
 for i in df_result_fin['w_FS'] :
     w.append(i)
 
-radius = radius = (1/88.74/1000)*10     ## 500m 반경을 표현함
+radius = radius = (1/88.74/1000)*500     ## 500m 반경을 표현함
 K = 30  ## 총 설치해야하는 설비 개수
 M = 5000  ## 급속 충전소 입지선정지수가 가장 높은 5000개 point
 
@@ -1372,7 +1765,7 @@ df_opt_FS.columns = ['lon', 'lat']
 df_opt_FS
 
 # +
-layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+layer0 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
                   df_14_possible, # 시각화에 쓰일 데이터프레임
                   #df_result_fin[df_result_fin['val']!=0],
                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
@@ -1381,15 +1774,42 @@ layer = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입
                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
                  ) 
 
-layer0 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
-                  df_08[(df_08['val'].isnull()==False) & df_08['val']!=0], # 시각화에 쓰일 데이터프레임 
-                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
-                  get_fill_color='[900, 255*정규화인구, 0, 정규화인구*10000 ]', # 각 데이터 별 rgb 또는 rgba 값 (0~255)
-                  pickable=True, # 지도와 interactive 한 동작 on 
-                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
-                 )  
 
-# layer1 = pdk.Layer( 'PathLayer', 
+# layer1 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+#                   df_14_possible, # 시각화에 쓰일 데이터프레임
+#                   #df_result_fin[df_result_fin['val']!=0],
+#                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+#                   get_fill_color='[0, 255*1, 0,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+#                   pickable=True, # 지도와 interactive 한 동작 on 
+#                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+#                  ) 
+
+# layer2 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+#                   df_08[(df_08['val'].isnull()==False) & df_08['val']!=0], # 시각화에 쓰일 데이터프레임 
+#                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+#                   get_fill_color='[900, 255*정규화인구, 0, 정규화인구*10000 ]', # 각 데이터 별 rgb 또는 rgba 값 (0~255)
+#                   pickable=True, # 지도와 interactive 한 동작 on 
+#                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+#                  )  
+
+# layer3 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+#                   df_14_possible, # 시각화에 쓰일 데이터프레임
+#                   #df_result_fin[df_result_fin['val']!=0],
+#                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+#                   get_fill_color='[0, 255*1, 0,140]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+#                   pickable=True, # 지도와 interactive 한 동작 on 
+#                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+#                  ) 
+
+# layer4 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+#                   df_08[(df_08['val'].isnull()==False) & df_08['val']!=0], # 시각화에 쓰일 데이터프레임 
+#                   get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+#                   get_fill_color='[900, 255*정규화인구, 0, 정규화인구*10000 ]', # 각 데이터 별 rgb 또는 rgba 값 (0~255)
+#                   pickable=True, # 지도와 interactive 한 동작 on 
+#                   auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+#                  )  
+
+# layer5 = pdk.Layer( 'PathLayer', 
 #                   df_10_11_time14, 
 #                   get_path='coordinate', 
 #                   get_width='교통량/2', 
@@ -1398,7 +1818,7 @@ layer0 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입
 #                  ) 
 
 
-# layer2 = pdk.Layer( 'PathLayer', 
+# layer6 = pdk.Layer( 'PathLayer', 
 #                   df_10_12, 
 #                   get_path='coordinate', 
 #                   get_width='혼잡빈도강도합/2', 
@@ -1407,13 +1827,13 @@ layer0 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입
 #                  ) 
 
 
-layer3 = pdk.Layer( 'PathLayer', 
-                  df_10_13, 
-                  get_path='coordinate', 
-                  get_width='혼잡시간강도합/10', 
-                  get_color='[255, 255 * 정규화도로폭, 120]', 
-                  pickable=True, auto_highlight=True 
-                 ) 
+# layer7 = pdk.Layer( 'PathLayer', 
+#                   df_10_13, 
+#                   get_path='coordinate', 
+#                   get_width='혼잡시간강도합/10', 
+#                   get_color='[255, 255 * 정규화도로폭, 120]', 
+#                   pickable=True, auto_highlight=True 
+#                  ) 
 
 # Set the viewport location 
 center = [128.5918, 38.27701] # 속초 센터 [128.5918, 38.20701]
@@ -1447,19 +1867,18 @@ opt = pdk.Layer(
 
 
 # Render 
-r = pdk.Deck(layers=[layer, layer0, layer3, scatt,opt], initial_view_state=view_state)
+r = pdk.Deck(layers=[layer0,scatt,opt], initial_view_state=view_state)
 #             mapbox_key = "pk.eyJ1IjoiamNsYXJhODExIiwiYSI6ImNrZzF4bWNhdTBpNnEydG54dGpxNDEwajAifQ.XWxOKQ-2HqFBVBYa-XoS-g"
 
     
-r.to_html('파란_기존급속충전소_노란_제안된 급속 최적화 지역.html')
+r.to_html('급속_반경200m_viewX_stayX.html.html')
 
 
 ## 노란색 : 제안된 최적화 지역
 ## 파란색 : 기존 급속 충전소
 
 # +
-# %%time
-# 완속 충전소 500m 반경
+# 완속 충전소
 df_result_fin = df_test[(df_test['SS_station']!=1)]
 df_result_fin
 
@@ -1471,7 +1890,7 @@ w= []
 for i in df_result_fin['w_SS'] :
     w.append(i)
 
-radius = (1/88.74/1000)*50     ## 500m 반경을 표현함
+radius = (1/88.74/1000)*50   
 K = 30
 M = 5000
 
