@@ -111,6 +111,236 @@ def polygon_to_coordinates(x):
 # **분석 데이터 종류**
 #
 
+sdf_00 = pd.read_csv('00.소상공인시장진흥공단_상가(상권)정보_강원_202106.csv')
+sdf_01 = pd.read_csv('01.속초-고성_관광명소데이터(시군구_행정동_100미터격자코드포함).csv', encoding = 'cp949')
+sdf_02 = pd.read_csv('02.상권_gid_추가.csv', encoding='utf-8')
+# store_gid = pd.read_csv('./store_gid.csv')
+sdf_03 = pd.read_csv('03.관광지별_관광소요시간_집계_데이터.csv', encoding='utf-8')
+sdf_04 = pd.read_csv('04.속초-고성_년도별읍면동_유동인구.csv')
+sdf05 = gpd.read_file('05.법정경계(읍면동).geojson')
+# df01 = pd.read_csv('./df_상권_grid_id부여.csv', index_col=None)
+sdf_06 = pd.read_csv('06.연별_기초지자체_네비목적지_검색건수_한국관광데이터랩.csv', encoding='utf-8')
+# df01_관광지 = pd.read_csv('./df01_관광지.csv', encoding='cp949')
+df06 = pd.read_excel('07.주요관광지점_입장객_한국문화관광연구원.xlsx')
+# df = pd.read_csv("df01_관광지_네비_방문객.csv", encoding='utf-8')
+# df = pd.read_csv("상권_최종.csv", encoding='utf-8')
+# df_merged = pd.read_csv('./df_result.csv', encoding='utf-8')
+# df_result = pd.read_csv('./동_유동인구.csv')
+df_08= gpd.read_file('08.속초-고성_격자별인구현황.json')
+# within_points=pd.read_csv('./input/within_points.csv',encoding='utf-8')
+
+# +
+# 강원 상권 정보 현황 (소상공인시장진흥공단)
+sdf_00 = pd.read_csv('00.소상공인시장진흥공단_상가(상권)정보_강원_202106.csv')
+
+# 지역 조건 부여
+con4 = sdf_00['시군구명'] == '속초시'
+con5 = sdf_00['시군구명'] == '고성군'
+
+# 업종 조건 부여
+con1 = sdf_00['상권업종대분류명'] == '숙박'
+con2 = sdf_00['상권업종대분류명'] == '음식'
+con3 = sdf_00['상권업종대분류명'] == '관광/여가/오락'
+
+# 필요한 열만 추출
+sdf_00 = sdf_00.loc[(con4 | con5) & (con1 | con2 | con3), ['상가업소번호', '상권업종대분류명', '상권업종중분류명', '상권업종소분류명', '시군구명', '법정동명', '지번주소', '도로명주소','경도', '위도']]
+
+#정렬
+sdf_00.sort_values(by=["상권업종대분류명", "상권업종중분류명"], ascending=[True, True], inplace=True)
+sdf_00['상권업종대분류명'] = sdf_00['상권업종대분류명'].str.replace('관광/여가/오락','여가/오락')
+
+# 중복된 행 제거
+sdf_00 = sdf_00.drop_duplicates(subset=None, 
+                          keep='first', 
+                          inplace=False, 
+                          ignore_index=False)
+
+# 국가지점번호 파일 불러오기
+sdf_02 = pd.read_csv('02.상권_gid_추가.csv', encoding='utf-8')
+sdf_02 = sdf_02[['상가업소번호', 'gid']]
+sdf_02 = sdf_02.drop_duplicates()
+sdf_02.set_index('상가업소번호', inplace=True)
+
+# 상권 파일에 gid 추가
+sdf_00['gid'] = sdf_00['상가업소번호'].apply(lambda x: sdf_02.loc[x,'gid'])
+
+# 상권 현황이 가장 높은 위치(격자) top 10
+sdf_00.groupby(['gid','법정동명'])['상가업소번호'].count().sort_values(ascending=False).head(10)
+# -
+
+# 상권 현황이 가장 높은 읍면동 top 10
+sdf_00.groupby(['법정동명'])['상가업소번호'].count().sort_values(ascending=False).head(5)
+
+# +
+# 데이터 불러오기 및 index열 삭제
+# sdf_01 = pd.read_csv('./input/01.속초-고성_관광명소데이터(시군구_행정동_100미터격자코드포함).csv', encoding = 'cp949')
+sdf_01.drop(['Unnamed: 0'], axis = 1, inplace = True)
+
+# 컬럼명 통일
+sdf_01.rename(columns={'L2 중분류':'상권업종대분류명'}, inplace=True)
+sdf_01.rename(columns={'분류명':'상권업종중분류명'}, inplace=True)
+sdf_01['상권업종소분류명']=sdf_01['상권업종중분류명']
+sdf_01.rename(columns={'마스터 POI ID':'상가업소번호'}, inplace=True)
+sdf_01.rename(columns={'법정읍면동명칭':'법정동명'}, inplace=True)
+sdf_01.rename(columns={'X좌표 경도':'경도'}, inplace=True)
+sdf_01.rename(columns={'Y좌표 위도':'위도'}, inplace=True)
+sdf_01.rename(columns={'시군구명칭':'시군구명'}, inplace=True)
+sdf_01.rename(columns={'GRID 격자 코드':'gid'}, inplace=True)
+
+# 컬럼 순서 및 불필요 데이터 삭제
+sdf_01 = sdf_01[['상가업소번호', '상권업종대분류명', '상권업종중분류명', '상권업종소분류명', '시군구명','법정동명', '경도', '위도', 'gid']]
+
+# 상건업종중분류 재분류
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('지역호수/저수지','자연관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('대형호수/저수지','자연관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('폭포/계곡','자연관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('휴양림/수목원','휴양관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('유명사찰','역사관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('지역사찰','역사관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('서원/향교/서당','역사관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('토속/특산물/기념품매장','지역축제')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('식물원','일반관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('일반관광지','기타관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('테마공원/대형놀이공원','기타관광지')
+sdf_01['상권업종중분류명'] = sdf_01['상권업종중분류명'].str.replace('일반유원지/일반놀이공원','일반관광지')
+
+# 관광지 파일에 gid 추가
+# sdf_01['gid'] = sdf_01['상가업소번호'].apply(lambda x: sdf_02.loc[x,'gid'])
+
+# 관광지 현황이 가장 높은 위치(격자) top 10
+sdf_01.groupby(['gid','법정동명'])['상가업소번호'].count().sort_values(ascending=False).head(10)
+# -
+
+# 관광지 현황이 가장 높은 읍면동 top 10
+sdf_01.groupby(['법정동명'])['상가업소번호'].count().sort_values(ascending=False).head(5)
+
+# +
+layer = pdk.Layer(
+    'ScreenGridLayer', # 대용량 데이터의 경우 'GPUGridLayer' , screentype 'ScreenGridLayer'
+    sdf_01,
+    get_position='[경도, 위도]',
+    pickable=True,
+    auto_highlight=True
+)
+layer.cellSizePixels = 8 # screen 사이즈 조정, default 100
+
+center = [128.48966249, 38.33094467] # 지도 뷰 중심 좌표
+view_state = pdk.ViewState(
+    longitude=center[0],
+    latitude=center[1],
+    zoom=9)
+
+r = pdk.Deck(layers=[layer], initial_view_state=view_state)
+r.to_html('./관광지현황.html')
+
+# +
+# 유동인구 데이터 불러오기
+sdf04 = pd.read_csv('04.속초-고성_년도별읍면동_유동인구.csv')
+
+# 주소 unit 별 분할하여 새로운 컬럼 생성
+add = sdf04['주소'].str.split(" ", expand=True)
+add.columns = ['시도','시군구','읍면동']
+sdf04 = pd.concat([sdf04,add], axis=1)
+
+#2015~2018 유동 인구 평균값 구하기 / 컬럼명 통일
+sdf04['2015'] = sdf04['2015'].str.replace(',','')
+sdf04['2016'] = sdf04['2016'].str.replace(',','')
+sdf04['2017'] = sdf04['2017'].str.replace(',','')
+sdf04['2018'] = sdf04['2018'].str.replace(',','')
+sdf04 = sdf04.astype({'2015':'float','2016':'float','2017':'float','2018':'float'})
+
+sdf04['mean']= sdf04.mean(axis=1,numeric_only = True)
+sdf04.rename(columns={'읍면동':'EMD_KOR_NM'}, inplace=True)
+sdf04.rename(columns={'시군구':'SIG_KOR_NM'}, inplace=True)
+sdf04['SGGEMD'] = sdf04['SIG_KOR_NM']+' '+sdf04['EMD_KOR_NM']
+
+# 읍면동 공간 데이터 불러오기
+sdf05 = gpd.read_file('05.법정경계(읍면동).geojson')
+
+# merge 위한 전처리
+sdf05['SIG_KOR_NM_x'] = sdf05.loc[sdf05['지역']=='속초','지역'] + '시'
+sdf05.fillna('고성군', inplace=True)
+sdf05['SGGEMD'] = sdf05['SIG_KOR_NM_x']+' '+sdf05['EMD_NM']
+
+# geojson 파일과 유동인구 파일 merge
+sdf05 = pd.merge(sdf05, sdf04, how='outer', on='SGGEMD')
+sdf05 = sdf05[['SIG_KOR_NM','EMD_KOR_NM','geometry', 'mean']]
+sdf05
+
+# 유동인구 수 정규화
+sdf05['정규화유동인구'] = sdf05['mean'] / sdf05['mean'].max()
+sdf05.dropna(axis=0, how='any')
+sdf05.drop_duplicates(inplace=True)
+
+
+# +
+#polygon과 multipolygon 혼재 데이터 coordinates화
+
+def multipolygon_to_coordinates(series_row): 
+    lon, lat = series_row[0].exterior.xy
+    return [[x, y] for x, y in zip(lon, lat)]
+def polygon_to_coordinates(series_row):
+    lon, lat = series_row.exterior.xy
+    return [[x, y] for x, y in zip(lon, lat)]
+mp_idx = []
+p_idx = []
+for i in range(len(sdf_05)):
+    if sdf05['geometry'][i].geom_type == 'MultiPolygon':
+        mp_idx.append(i)
+    if sdf05['geometry'][i].geom_type == 'Polygon':
+        p_idx.append(i)
+sdf05['coordinates'] = 0
+for idx1 in p_idx:
+    print(idx1)
+    sdf05['coordinates'].iloc[idx1] = polygon_to_coordinates(sdf05['geometry'][idx1])
+for idx2 in mp_idx:
+        sdf05['coordinates'].iloc[idx2] = multipolygon_to_coordinates(sdf05['geometry'][idx2])
+
+# +
+# GridLayer 시각화
+
+layer1 = pdk.Layer(
+    'ScreenGridLayer', # 대용량 데이터의 경우 'GPUGridLayer' , screentype 'ScreenGridLayer'
+    sdf_00,
+    get_position='[경도, 위도]',
+    pickable=True,
+    auto_highlight=True
+)
+
+layer2 = pdk.Layer( 'PolygonLayer', # 사용할 Layer 타입 
+                  sdf_05, # 시각화에 쓰일 데이터프레임 
+                  get_polygon='coordinates', # geometry 정보를 담고있는 컬럼 이름 
+                  get_fill_color='[255*정규화유동인구,150*정규화유동인구, 255*정규화유동인구, 1000*정규화유동인구]', # 각 데이터 별 rgb 또는 rgba 값 (0~255) 
+                  pickable=True, # 지도와 interactive 한 동작 on 
+                  auto_highlight=True # 마우스 오버(hover) 시 박스 출력 
+                 ) 
+
+layer1.cellSizePixels = 10 # screen 사이즈 조정, default 100
+
+center = [128.48966249, 38.26924467] # 지도 뷰 중심 좌표
+view_state = pdk.ViewState(
+    longitude=center[0],
+    latitude=center[1],
+    zoom=8)
+
+r = pdk.Deck(layers=[layer2,layer1], initial_view_state=view_state)
+r.to_html('./상권_유동인구layered.html')
+# -
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ---------------------------------
 # ## 3. 
 #
@@ -176,7 +406,7 @@ df_10_11_time11.iloc[df_10_11_time11["교통량"].sort_values(ascending=False).i
 layer = pdk.Layer( 'PathLayer', 
                   df_10_11_time11, 
                   get_path='coordinate', 
-                  get_width='교통량/2', 
+                  get_width='교통량/4', 
                   get_color='[255, 255 * 정규화도로폭, 120]', 
                   pickable=True, auto_highlight=True 
                  ) 
@@ -218,7 +448,7 @@ df_10_11_time14.iloc[df_10_11_time14["교통량"].sort_values(ascending=False).i
 layer = pdk.Layer( 'PathLayer', 
                   df_10_11_time14, 
                   get_path='coordinate', 
-                  get_width='교통량/2', 
+                  get_width='교통량/4', 
                   get_color='[255, 255 * 정규화도로폭, 120]', 
                   pickable=True, auto_highlight=True 
                  ) 
@@ -276,7 +506,7 @@ df_10_12.iloc[df_10_12["혼잡빈도강도합"].sort_values(ascending=False).ind
 layer = pdk.Layer( 'PathLayer', 
                   df_10_12, 
                   get_path='coordinate', 
-                  get_width='혼잡빈도강도합', 
+                  get_width='혼잡빈도강도합/2', 
                   get_color='[255, 255 * 정규화도로폭, 120]', 
                   pickable=True, auto_highlight=True 
                  ) 
@@ -306,7 +536,7 @@ df_10_13.iloc[df_10_13["혼잡시간강도합"].sort_values(ascending=False).ind
 layer = pdk.Layer( 'PathLayer', 
                   df_10_13, 
                   get_path='coordinate', 
-                  get_width='혼잡시간강도합', 
+                  get_width='혼잡시간강도합/2', 
                   get_color='[255, 255 * 정규화도로폭, 120]', 
                   pickable=True, auto_highlight=True 
                  ) 
@@ -394,9 +624,6 @@ r = pdk.Deck(layers=[layer], initial_view_state=view_state,
     
 r.to_html('충전소설치가능위치.html')
 # -
-
-
-
 # # II. 입지선정지수 개발
 #
 # ## 1. 지역특성 요소 추출
@@ -448,8 +675,8 @@ df_result['val'] = df_result['val'].fillna(0)
 point_cent= gpd.GeoDataFrame(df_result[['grid_id','geo_cent']],geometry = 'geo_cent')
 
 #굉장히 오래걸림
-within_points=point_cent.buffer(0.00000001).within(geo_possible.loc[0,'geometry'])
-pd.DataFrame(within_points).to_csv("within_points.csv", index = False)
+# within_points=point_cent.buffer(0.00000001).within(geo_possible.loc[0,'geometry'])
+# pd.DataFrame(within_points).to_csv("within_points.csv", index = False)
 
 within_points=pd.read_csv("within_points.csv")
 df_result['개발가능'] = 0
